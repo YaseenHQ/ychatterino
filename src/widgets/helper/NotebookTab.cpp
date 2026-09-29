@@ -24,6 +24,7 @@
 #include "providers/twitch/TwitchChannel.hpp"
 #include "messages/Image.hpp"
 #include "common/Aliases.hpp"
+#include "widgets/Window.hpp"
 
 #include <boost/bind/bind.hpp>
 #include <boost/container_hash/hash.hpp>
@@ -39,6 +40,8 @@
 #include <QPainterPath>
 
 #include <algorithm>
+
+using namespace Qt::StringLiterals;
 
 namespace chatterino {
 namespace {
@@ -122,7 +125,7 @@ NotebookTab::NotebookTab(Notebook *notebook)
 
     this->tooltipWidget_ = new TooltipWidget(this);
 
-    this->menu_.addAction("Rename Tab", [this]() {
+    this->menu_.addAction(u"Rename Tab…"_s, this, [this]() {
         this->showRenameDialog();
     });
 
@@ -462,20 +465,7 @@ void NotebookTab::themeChangedEvent()
 
 void NotebookTab::growWidth(int width)
 {
-    if (this->growWidth_ != width)
-    {
-        this->growWidth_ = width;
-        this->updateSize();
-    }
-    else
-    {
-        this->growWidth_ = width;
-    }
-}
-
-int NotebookTab::normalTabWidth() const
-{
-    return this->normalTabWidthForHeight(this->height());
+    this->growWidth_ = width;
 }
 
 int NotebookTab::normalTabWidthForHeight(int height) const
@@ -510,22 +500,57 @@ int NotebookTab::normalTabWidthForHeight(int height) const
     return width;
 }
 
-void NotebookTab::updateSize()
+void NotebookTab::refreshAndCommitSize(bool notify)
+{
+    this->refreshSize();
+    this->commitSize(notify);
+}
+
+void NotebookTab::refreshSize()
 {
     float scale = this->scale();
     auto height = static_cast<int>(NOTEBOOK_TAB_HEIGHT * scale);
     int width = this->normalTabWidthForHeight(height);
+    this->computedMinimumSize = {width, height};
+}
 
-    if (width < this->growWidth_)
+void NotebookTab::commitSize(bool notify)
+{
+    auto size = this->computedMinimumSize;
+    if (size.width() < this->growWidth_)
     {
-        width = this->growWidth_;
+        size.setWidth(this->growWidth_);
     }
 
-    if (this->width() != width || this->height() != height)
+    if (this->size() != size)
     {
-        this->resize(width, height);
-        this->notebook_->refresh();
+        this->resize(size);
+        if (notify)
+        {
+            this->notebook_->refresh();
+        }
     }
+}
+
+QSize NotebookTab::minimumTabSize() const
+{
+    return this->computedMinimumSize;
+}
+
+int NotebookTab::minimumTabWidth() const
+{
+    return this->computedMinimumSize.width();
+}
+
+void NotebookTab::queueMove(QPoint to, bool animated)
+{
+    this->queuedMove = to;
+    this->queuedMoveAnimated = animated;
+}
+
+void NotebookTab::commitMove()
+{
+    this->moveAnimated(this->queuedMove, this->queuedMoveAnimated);
 }
 
 const QString &NotebookTab::getCustomTitle() const
@@ -580,9 +605,9 @@ void NotebookTab::titleUpdated()
 {
     // Queue up save because: Tab title changed
     getApp()->getWindows()->queueSave();
-    this->notebook_->refresh();
-    this->updateSize();
+    this->refreshSize();
     this->update();
+    this->notebook_->refresh();
 }
 
 bool NotebookTab::isSelected() const
@@ -611,13 +636,13 @@ void NotebookTab::newHighlightSourceAdded(const ChannelView &channelViewSource)
     this->removeHighlightSource(channelViewId);
     this->updateHighlightStateDueSourcesChange();
 
-    auto *splitNotebook = dynamic_cast<SplitNotebook *>(this->notebook_);
-    if (splitNotebook)
+    for (auto *window : getApp()->getWindows()->windows())
     {
-        for (int i = 0; i < splitNotebook->getPageCount(); ++i)
+        auto &splitNotebook = window->getNotebook();
+        for (int i = 0; i < splitNotebook.getPageCount(); ++i)
         {
             auto *splitContainer =
-                dynamic_cast<SplitContainer *>(splitNotebook->getPageAt(i));
+                dynamic_cast<SplitContainer *>(splitNotebook.getPageAt(i));
             if (splitContainer)
             {
                 auto *tab = splitContainer->getTab();
@@ -698,13 +723,13 @@ void NotebookTab::setSelected(bool value)
 
     if (value)
     {
-        auto *splitNotebook = dynamic_cast<SplitNotebook *>(this->notebook_);
-        if (splitNotebook)
+        for (auto *window : getApp()->getWindows()->windows())
         {
-            for (int i = 0; i < splitNotebook->getPageCount(); ++i)
+            auto &splitNotebook = window->getNotebook();
+            for (int i = 0; i < splitNotebook.getPageCount(); ++i)
             {
                 auto *splitContainer =
-                    dynamic_cast<SplitContainer *>(splitNotebook->getPageAt(i));
+                    dynamic_cast<SplitContainer *>(splitNotebook.getPageAt(i));
                 if (splitContainer)
                 {
                     auto *tab = splitContainer->getTab();
@@ -862,17 +887,19 @@ void NotebookTab::updateHighlightState(HighlightState newHighlightStyle,
 bool NotebookTab::shouldMessageHighlight(
     const ChannelView &channelViewSource) const
 {
-    auto *visibleSplitContainer =
-        dynamic_cast<SplitContainer *>(this->notebook_->getSelectedPage());
-    if (visibleSplitContainer != nullptr)
+    for (auto *window : getApp()->getWindows()->windows())
     {
-        const auto &visibleSplits = visibleSplitContainer->getSplits();
-        for (const auto &visibleSplit : visibleSplits)
+        auto *visibleSplitContainer = window->getNotebook().getSelectedPage();
+        if (visibleSplitContainer != nullptr)
         {
-            if (channelViewSource.getID() ==
-                visibleSplit->getChannelView().getID())
+            const auto &visibleSplits = visibleSplitContainer->getSplits();
+            for (const auto &visibleSplit : visibleSplits)
             {
-                return false;
+                if (channelViewSource.getID() ==
+                    visibleSplit->getChannelView().getID())
+                {
+                    return false;
+                }
             }
         }
     }
@@ -898,7 +925,7 @@ QRect NotebookTab::getDesiredRect() const
 
 void NotebookTab::tabSizeChanged()
 {
-    this->updateSize();
+    this->refreshAndCommitSize(true);
     this->update();
 }
 
@@ -1516,29 +1543,7 @@ void NotebookTab::mouseMoveEvent(QMouseEvent *event)
 
 void NotebookTab::wheelEvent(QWheelEvent *event)
 {
-    const auto defaultMouseDelta = 120;
-    int delta = event->angleDelta().y();
-    if (delta == 0)
-    {
-        delta = event->angleDelta().x();
-    }
-    const auto selectTab = [this](int d) {
-        d > 0 ? this->notebook_->selectPreviousTab()
-              : this->notebook_->selectNextTab();
-    };
-    if (std::abs(delta) < defaultMouseDelta)
-    {
-        this->mouseWheelDelta_ += delta;
-        if (std::abs(this->mouseWheelDelta_) >= defaultMouseDelta)
-        {
-            selectTab(this->mouseWheelDelta_);
-            this->mouseWheelDelta_ = 0;
-        }
-    }
-    else
-    {
-        selectTab(delta);
-    }
+    this->notebook_->scrollTabs(event);
 }
 
 void NotebookTab::update()

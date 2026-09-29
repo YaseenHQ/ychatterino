@@ -36,14 +36,16 @@ class Chatterino(ConanFile):
 
     def generate(self):
         tc = CMakeToolchain(self)
-        tc.blocks.remove("compilers")
-        tc.blocks.remove("cmake_flags_init")
-        tc.blocks.remove("cppstd")
-        tc.blocks.remove("libcxx")
-        tc.blocks.remove("generic_system")
-        tc.blocks.remove("user_toolchain")
-        tc.blocks.remove("output_dirs")
-        tc.blocks.remove("apple_system")
+        # FIXME: Not sure about macOS here.
+        if self.settings.os == "Windows":
+            tc.blocks.remove("compilers")
+            tc.blocks.remove("cmake_flags_init")
+            tc.blocks.remove("cppstd")
+            tc.blocks.remove("libcxx")
+            tc.blocks.remove("generic_system")
+            tc.blocks.remove("user_toolchain")
+            tc.blocks.remove("output_dirs")
+            tc.blocks.remove("apple_system")
         tc.user_presets_path = False
         tc.generate()
 

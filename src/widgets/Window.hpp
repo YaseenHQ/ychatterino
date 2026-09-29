@@ -37,6 +37,9 @@ public:
     SplitNotebook &getNotebook();
     bool supportsCompactHeaders() const;
 
+    void setPopupID(size_t id);
+    std::optional<size_t> popupID() const;
+
     pajlada::Signals::NoArgSignal closed;
 
 protected:
@@ -80,6 +83,8 @@ private:
     void updateCompactHeaderButtons();
     void updateCompactHeaderMode();
     void setupCompactHeaderConnections();
+
+    std::optional<size_t> popupID_;
 
     friend class Notebook;
 };

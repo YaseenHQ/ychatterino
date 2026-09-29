@@ -228,12 +228,36 @@ KickPrivateChatroomInfo::KickPrivateChatroomInfo(BoostJsonObject obj)
     }
 }
 
+KickPrivateChannelSubBadge::KickPrivateChannelSubBadge(BoostJsonObject obj)
+    : months(static_cast<unsigned>(obj["months"].toUint64()))
+    , badgeImageUrl(obj["badge_image"]["src"].toQString())
+{
+}
+
 KickPrivateChannelInfo::KickPrivateChannelInfo(BoostJsonObject obj)
     : channelID(obj["id"].toUint64())
-    , followersCount(obj["followers_count"].toUint64())
     , slug(obj["slug"].toQString())
     , user(obj["user"].toObject())
     , chatroom(obj["chatroom"].toObject())
+{
+    for (auto badge : obj["subscriber_badges"].toArray())
+    {
+        this->subBadges.emplace_back(badge.toObject());
+    }
+    auto followers = obj["followers_count"];
+    if (followers.isInt64())
+    {
+        this->followersCount = followers.toUint64();
+    }
+    else if (followers.isString())
+    {
+        this->followersCount =
+            QLatin1StringView(followers.toStringView()).toULongLong();
+    }
+}
+
+KickPrivateChannelInfoSmall::KickPrivateChannelInfoSmall(BoostJsonObject obj)
+    : user(obj["user"].toObject())
 {
 }
 
@@ -280,6 +304,7 @@ KickChannelInfo::KickChannelInfo(BoostJsonObject obj)
     , category(obj["category"].toObject())
     , stream(obj["stream"].toObject())
     , streamTitle(obj["stream_title"].toQString())
+    , slug(obj["slug"].toQString())
 {
 }
 
@@ -322,6 +347,13 @@ void KickApi::privateChannelInfo(const QString &username,
                                         std::move(cb), username);
 }
 
+void KickApi::privateChannelInfoSmall(const QString &slug,
+                                      Callback<KickPrivateChannelInfoSmall> cb)
+{
+    autoSlugify<KickPrivateChannelInfoSmall>(
+        u"https://kick.com/api/v2/channels"_s, std::move(cb), slug, "info");
+}
+
 void KickApi::privateUserInChannelInfo(
     const QString &userUsername, const QString &channelUsername,
     Callback<KickPrivateUserInChannelInfo> cb)
@@ -335,6 +367,14 @@ void KickApi::privateEmotesInChannel(
     const QString &username, Callback<std::vector<KickPrivateEmoteSetInfo>> cb)
 {
     autoSlugify(u"https://kick.com/emotes"_s, std::move(cb), username);
+}
+
+void KickApi::privateChannelHistory(uint64_t channelID,
+                                    Callback<BoostJsonObject> cb)
+{
+    autoSlugify(u"https://web.kick.com/api/v1/chat/" %
+                    QString::number(channelID) % "/history",
+                std::move(cb));
 }
 
 void KickApi::sendMessage(uint64_t broadcasterUserID, const QString &message,

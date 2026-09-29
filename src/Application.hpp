@@ -31,6 +31,7 @@ class TwitchBadges;
 class PluginController;
 #endif
 
+class Modes;
 class Theme;
 class WindowManager;
 class ILogging;
@@ -84,6 +85,7 @@ public:
 
     virtual const Paths &getPaths() = 0;
     virtual const Args &getArgs() = 0;
+    virtual const Modes &getModes() = 0;
     virtual Theme *getThemes() = 0;
     virtual Fonts *getFonts() = 0;
     virtual EmoteController *getEmotes() = 0;
@@ -133,12 +135,13 @@ class Application : public IApplication
 {
     const Paths &paths_;
     const Args &args_;
+    const Modes &modes_;
     int argc_{};
     char **argv_{};
 
 public:
     Application(Settings &_settings, const Paths &paths, const Args &_args,
-                Updates &_updates);
+                const Modes &modes, Updates &_updates);
     ~Application() override;
 
     Application(const Application &) = delete;
@@ -155,6 +158,8 @@ public:
     void load();
     void aboutToQuit();
     void stop();
+
+    void connect();
 
     int run();
 
@@ -212,6 +217,10 @@ public:
     {
         return this->args_;
     }
+    const Modes &getModes() override
+    {
+        return this->modes_;
+    }
     Theme *getThemes() override;
     Fonts *getFonts() override;
     EmoteController *getEmotes() override;
@@ -259,7 +268,7 @@ public:
     KickChatServer *getKickChatServer() override;
 
 private:
-    void initNm(const Paths &paths);
+    void initNm(const Modes &modes, const Paths &paths);
 
     std::unique_ptr<NativeMessagingServer> nmServer;
     Updates &updates;

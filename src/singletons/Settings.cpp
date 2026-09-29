@@ -6,6 +6,8 @@
 
 #include "Application.hpp"
 #include "common/Args.hpp"
+#include "common/Modes.hpp"
+#include "common/QLogging.hpp"
 #include "controllers/filters/FilterRecord.hpp"
 #include "controllers/highlights/HighlightBadge.hpp"
 #include "controllers/highlights/HighlightBlacklistUser.hpp"
@@ -46,6 +48,13 @@ void initializeSignalVector(pajlada::Signals::SignalHolder &signalHolder,
 
 namespace chatterino {
 
+namespace {
+
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+const auto &LOG = chatterinoSettings;
+
+}  // namespace
+
 std::vector<std::weak_ptr<pajlada::Settings::SettingData>> _settings;
 
 void _actuallyRegisterSetting(
@@ -67,6 +76,10 @@ bool Settings::isHighlightedUser(const QString &username)
     }
 
     return false;
+}
+
+void Settings::migrate(bool isTest)
+{
 }
 
 bool Settings::isBlacklistedUser(const QString &username)
@@ -150,10 +163,14 @@ bool Settings::toggleMutedChannel(const QString &channelName)
 
 Settings *Settings::instance_ = nullptr;
 
-Settings::Settings(const Args &args, const QString &settingsDirectory,
+Settings::Settings(const Modes &modes, const Args &args,
+                   const QString &settingsDirectory,
                    const SettingsArgs &settingsArgs)
     : prevInstance_(Settings::instance_)
     , disableSaving(args.dontSaveSettings)
+    , createShortcutForToasts(
+          "/notifications/createShortcutForToasts",
+          (modes.isPortable || modes.isExternallyPackaged) ? false : true)
 {
     QString settingsPath = settingsDirectory + "/settings.json";
 
@@ -162,6 +179,7 @@ Settings::Settings(const Args &args, const QString &settingsDirectory,
 
     if (settingsArgs.isTest)
     {
+        qCInfo(LOG) << "Loading settings from" << settingsPath;
         settingsInstance->load(qPrintable(settingsPath));
     }
     else
@@ -192,6 +210,10 @@ Settings::Settings(const Args &args, const QString &settingsDirectory,
                         return makeUnexpected("Failed to seek in file");
                     case LoadError::JSONParseError:
                         return makeUnexpected("File contained malformed JSON");
+                    case LoadError::SavingFromTemporaryFileFailed:
+                        return makeUnexpected(
+                            u"Failed to save '" % settingsPath %
+                            u"' with settings from .tmp file");
                 }
                 assert(false);
                 return makeUnexpected("Unknown error");
@@ -206,6 +228,12 @@ Settings::Settings(const Args &args, const QString &settingsDirectory,
             pajlada::Settings::SettingManager::SaveMethod::SaveManually) |
         static_cast<uint64_t>(
             pajlada::Settings::SettingManager::SaveMethod::OnlySaveIfChanged));
+
+    // Run setting migrations
+    if (settingsArgs.runMigrations)
+    {
+        this->migrate(settingsArgs.isTest);
+    }
 
     initializeSignalVector(this->signalHolder, this->highlightedMessagesSetting,
                            this->highlightedMessages);
@@ -244,7 +272,8 @@ Settings::Settings(const Args &args, const QString &settingsDirectory,
     {
         this->showUnlistedSevenTVEmotes.setValue(true);
         // reset to default, so it doesn't appear in the config
-        this->showUnlistedEmotesDontUse.remove();
+        settingsInstance->removeSetting(
+            this->showUnlistedEmotesDontUse.getPath());
     }
 }
 
