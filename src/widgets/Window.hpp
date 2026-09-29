@@ -77,6 +77,7 @@ private:
     DrawnButton *compactDropdownButton_ = nullptr;  // Linux: notebook tab row
     SvgButton *compactModButton_ = nullptr;
     SvgButton *compactChattersButton_ = nullptr;
+    SvgButton *compactPinButton_ = nullptr;
     LabelButton *compactModeButton_ = nullptr;
     pajlada::Signals::SignalHolder compactHeaderConnections_;
     void updateCompactHeader();

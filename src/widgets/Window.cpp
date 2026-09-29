@@ -322,6 +322,22 @@ void Window::addCustomTitlebarButtons()
             });
         this->compactChattersButton_->setVisible(
             getSettings()->compactHeaders.getValue());
+        this->compactPinButton_ = this->addTitleBarButton<SvgButton>(
+            [this] {
+                auto *page = this->notebook_->getSelectedPage();
+                if (auto *split = page ? page->getSelectedSplit() : nullptr)
+                {
+                    split->togglePinnedBanner();
+                }
+            },
+            SvgButton::Src{
+                .dark = ":/buttons/pinnedMessage-chat.svg",
+                .light = ":/buttons/pinnedMessage-chat.svg",
+            });
+        this->compactPinButton_->setVisible(
+            getSettings()->compactHeaders.getValue());
+        this->compactPinButton_->setToolTip(
+            QStringLiteral("Toggle pinned message"));
         const bool compact = getSettings()->compactHeaders.getValue();
         this->compactDropdownButton_ =
             this->addTitleBarButton<DrawnButton>([this] {
@@ -522,6 +538,10 @@ void Window::setupCompactHeaderConnections()
                 this->updateCompactHeaderButtons();
             });
         this->compactHeaderConnections_.managedConnect(
+            twitchChannel->pinnedMessageChanged, [this] {
+                this->updateCompactHeaderButtons();
+            });
+        this->compactHeaderConnections_.managedConnect(
             twitchChannel->userStateChanged, [this] {
                 this->updateCompactHeaderButtons();
             });
@@ -649,6 +669,8 @@ void Window::updateCompactHeaderButtons()
             this->compactChattersButton_->setVisible(false);
         if (this->compactModeButton_)
             this->compactModeButton_->setVisible(false);
+        if (this->compactPinButton_)
+            this->compactPinButton_->setVisible(false);
 #ifdef Q_OS_MACOS
         updateMacOsTitlebarButtonsForSplit(nullptr);
 #endif
@@ -678,6 +700,16 @@ void Window::updateCompactHeaderButtons()
     {
         this->compactChattersButton_->setVisible(
             compact && (hasMod && channel->isTwitchChannel()));
+    }
+    if (this->compactPinButton_)
+    {
+        bool hasPinnedMessage = false;
+        if (auto *twitchChannel =
+                dynamic_cast<TwitchChannel *>(channel.get()))
+        {
+            hasPinnedMessage = twitchChannel->getPinnedMessage() != nullptr;
+        }
+        this->compactPinButton_->setVisible(compact && hasPinnedMessage);
     }
 
     this->updateCompactHeaderMode();
