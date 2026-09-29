@@ -25,10 +25,6 @@ class LabelButton;
 class Label;
 class Split;
 
-QString formatStreamTitle(bool rerun, const QString &streamType,
-                          const QString &uptime, unsigned viewerCount,
-                          const QString &game, const QString &streamTitle);
-
 class SplitHeader final : public BaseWidget
 {
     Q_OBJECT
@@ -37,6 +33,15 @@ public:
     explicit SplitHeader(Split *split);
 
     void setAddButtonVisible(bool value);
+
+    /// Current title text (channel name + stream info) shown in the header.
+    /// Compact-titlebar mirrors read this instead of recomputing it.
+    [[nodiscard]] QString getTitleText() const;
+    /// Rich-text tooltip (thumbnail, uptime, viewers...) for the title text.
+    [[nodiscard]] const QString &getTooltipText() const;
+
+    /// Emitted whenever the title or tooltip text changes.
+    pajlada::Signals::NoArgSignal channelTextChanged;
 
     void updateChannelText();
     void updateIcons();

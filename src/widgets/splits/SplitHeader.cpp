@@ -88,40 +88,6 @@ auto distance(QPoint a, QPoint b)
 
 namespace chatterino {
 
-QString formatStreamTitle(bool rerun, const QString &streamType,
-                          const QString &uptime, unsigned viewerCount,
-                          const QString &game, const QString &streamTitle)
-{
-    QStringList details;
-    details.append(rerun ? "Rerun"
-                         : (streamType.isEmpty() || streamType == "live"
-                                ? "Live"
-                                : streamType));
-
-    const bool hidePrivateStreamData =
-        getApp()->getStreamerMode()->isEnabled() &&
-        getSettings()->streamerModeHideViewerCountAndDuration;
-    if (!hidePrivateStreamData && getSettings()->headerUptime &&
-        !uptime.isEmpty())
-    {
-        details.append(uptime);
-    }
-    if (!hidePrivateStreamData && getSettings()->headerViewerCount)
-    {
-        details.append(localizeNumbers(viewerCount) + " viewers");
-    }
-    if (getSettings()->headerGame && !game.isEmpty())
-    {
-        details.append(game);
-    }
-    if (getSettings()->headerStreamTitle && !streamTitle.isEmpty())
-    {
-        details.append(streamTitle.simplified());
-    }
-
-    return " | " + details.join(" | ");
-}
-
 QString formatRoomModeUnclean(const TwitchChannel::RoomModes &modes)
 {
     QString text;
@@ -1087,6 +1053,16 @@ void SplitHeader::updatePinButton()
     }
 }
 
+QString SplitHeader::getTitleText() const
+{
+    return this->titleLabel_->getText();
+}
+
+const QString &SplitHeader::getTooltipText() const
+{
+    return this->tooltipText_;
+}
+
 void SplitHeader::updateChannelText()
 {
     auto indirectChannel = this->split_->getIndirectChannel();
@@ -1203,6 +1179,7 @@ void SplitHeader::updateChannelText()
     }
 
     this->titleLabel_->setText(title.isEmpty() ? "<empty>" : title);
+    this->channelTextChanged.invoke();
 }
 
 void SplitHeader::updateIcons()

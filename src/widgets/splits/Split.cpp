@@ -741,6 +741,11 @@ PinnedMessageWidget *Split::getPinnedBanner() const
     return this->pinnedBanner_;
 }
 
+SplitHeader *Split::getHeader() const
+{
+    return this->header_;
+}
+
 void Split::updateInputPlaceholder()
 {
     auto channel = this->getChannel();

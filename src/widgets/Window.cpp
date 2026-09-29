@@ -525,6 +525,10 @@ void Window::setupCompactHeaderConnections()
             this->updateCompactHeader();
             this->updateCompactHeaderButtons();
         });
+    this->compactHeaderConnections_.managedConnect(
+        split->getHeader()->channelTextChanged, [this] {
+            this->updateCompactHeader();
+        });
 
     auto channel = split->getChannel();
     if (auto *twitchChannel = dynamic_cast<TwitchChannel *>(channel.get()))
@@ -583,44 +587,27 @@ void Window::updateCompactHeader()
     }
     else if (auto *split = page->getSelectedSplit())
     {
-        auto channel = split->getChannel();
-        auto selectedChannel = split->getSelectedChannel();
-
-        text = channel->getLocalizedName();
-        if (channel->getType() == Channel::Type::TwitchWatching)
+        // Mirror the split's (hidden) header instead of recomputing stream
+        // info here — the header stays the single source of truth.
+        text = split->getHeader()->getTitleText();
+        if (this->compactHeaderLabel_)
         {
-            text = "watching: " + (text.isEmpty() ? "none" : text);
-        }
-
-        if (auto *twitchChannel =
-                dynamic_cast<TwitchChannel *>(selectedChannel.get()))
-        {
-            const auto streamStatus = twitchChannel->accessStreamStatus();
-            if (streamStatus->live)
-            {
-                text += formatStreamTitle(
-                    streamStatus->rerun, streamStatus->streamType,
-                    streamStatus->uptime, streamStatus->viewerCount,
-                    streamStatus->game, streamStatus->title);
-            }
-        }
-        else if (auto *kickChannel =
-                     dynamic_cast<KickChannel *>(selectedChannel.get()))
-        {
-            const auto &stream = kickChannel->streamData();
-            if (stream.isLive)
-            {
-                text += formatStreamTitle(
-                    false, "live", stream.uptime,
-                    static_cast<unsigned>(stream.viewerCount), stream.category,
-                    stream.title);
-            }
+            this->compactHeaderLabel_->setToolTip(
+                split->getHeader()->getTooltipText());
         }
     }
     else
     {
         auto *tab = page->getTab();
         text = tab ? tab->getTitle() : QString();
+    }
+
+    if (!page || page->getSelectedSplit() == nullptr)
+    {
+        if (this->compactHeaderLabel_)
+        {
+            this->compactHeaderLabel_->setToolTip(QString());
+        }
     }
 
     QString labelText = text.isEmpty() ? "<empty>" : text;
